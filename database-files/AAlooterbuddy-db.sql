@@ -75,12 +75,12 @@ CREATE TABLE Comments (
 
 CREATE TABLE Follows (
     userID INT NOT NULL,
-    followID INT UNIQUE NOT NULL,
+    followID INT AUTO_INCREMENT UNIQUE NOT NULL,
     dateCreated DATETIME DEFAULT CURRENT_TIMESTAMP,
     streamerID INT NOT NULL,
     FOREIGN KEY (userID) REFERENCES Users(userID),
     FOREIGN KEY (streamerID) REFERENCES ContentCreators(streamerID),
-    PRIMARY KEY (userID, followID)
+    PRIMARY KEY (followID)
 );
 
 CREATE TABLE Items (

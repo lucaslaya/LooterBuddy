@@ -8,10 +8,13 @@ def HomeNav():
 
 #### ------------------------ Player --------------------------
 def PlayerHomeNav():
-    st.sidebar.page_link("pages/00_player_home.py", label="Player Home", icon='👤')
+    st.sidebar.page_link("pages/00_player_home.py", label="Home", icon='🏠')
 
 def InventoryLoadoutNav():
     st.sidebar.page_link("pages/01_inventory_loadout.py", label="Inventory/Loadout")
+
+def PlayerPerformanceNav():
+    st.sidebar.page_link("pages/02_player_performance.py", label="Performance")
 
 # --------------------------------Links Function -----------------------------------------------
 def SideBarLinks(show_home=False):
@@ -38,7 +41,7 @@ def SideBarLinks(show_home=False):
         if st.session_state['role'] == 'player':
             PlayerHomeNav()
             InventoryLoadoutNav()
-            #WorldBankVizNav()
+            PlayerPerformanceNav()
             #MapDemoNav()
 
         # If the user role is usaid worker, show the Api Testing page

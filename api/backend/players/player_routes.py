@@ -199,6 +199,7 @@ def get_streamers():
     cursor = db.get_db().cursor()
     query = '''
         SELECT
+            c.streamerID,
             u.username,
             c.category,
             c.description
@@ -263,7 +264,7 @@ def add_follow(playerID, streamerID):
     cursor.execute(query, (playerID,))
     user_id = cursor.fetchone()
 
-    if not user_id:
+    if user_id is None:
         return make_response(jsonify({"error": "Player not found"}), 404)
     
     # Insert a new follow record
