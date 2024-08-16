@@ -4,8 +4,9 @@ logging.basicConfig(level=logging.DEBUG)
 from flask import Flask
 
 from backend.db_connection import db
-#from backend.customers.customer_routes import customers
-#from backend.products.products_routes import products
+from backend.players.player_routes import players
+from backend.developers.developer_routes import developers
+from backend.streamers.streamer_routes import streamers
 import os
 from dotenv import load_dotenv
 
@@ -38,63 +39,15 @@ def create_app():
     # Example: localhost:8001
     @app.route("/")
     def welcome():
-        return "<h1>Welcome to the Summer 2024 CS 3200 Project Template Repo</h1>"
-    
-    # Example route for testing streamlit
-    @app.route("/data")
-    def getData():
-        data = {
-            "staff": [
-                {
-                    "Name": "Mark Fontenot",
-                    "role": "Instructor"
-                },
-                {
-                    "Name": "Ashley Davis",
-                    "role": "TA"
-                },
-                {
-                    "Name": "Dylan Toplas",
-                    "role": "TA"
-                },
-                {
-                    "Name": "Hazelyn Aroian",
-                    "role": "TA"
-                },
-                {
-                    "Name": "Jared Lyon",
-                    "role": "TA"
-                },
-                {
-                    "Name": "Khanh Nguyen",
-                    "role": "TA"
-                },
-                {
-                    "Name": "Nathan Cheung",
-                    "role": "TA"
-                },
-                {
-                    "Name": "Nicole Contreras",
-                    "role": "TA"
-                },
-                {
-                    "Name": "Reid Chandler",
-                    "role": "TA"
-                },
-                {
-                    "Name": "Sai Kumar Reddy",
-                    "role": "TA"
-                }
-            ]
-        }
-        return data
+        return "<h1>Welcome to LooterBuddyAPI</h1>"
     
     app.logger.info('current_app(): registering blueprints with Flask app object.')
 
     # Register the routes from each Blueprint with the app object
     # and give a url prefix to each
-    #app.register_blueprint(customers,   url_prefix='/c')
-    #app.register_blueprint(products,    url_prefix='/p')
+    app.register_blueprint(players,   url_prefix='/p')
+    app.register_blueprint(developers,    url_prefix='/d')
+    app.register_blueprint(streamers, url_prefix='/s')
 
     # Don't forget to return the app object
     return app
