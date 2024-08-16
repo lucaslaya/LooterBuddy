@@ -1,139 +1,125 @@
-import logging
-logger = logging.getLogger(__name__)
-import pandas as pd
 import streamlit as st
-from streamlit_extras.app_logo import add_logo
-import matplotlib.pyplot as plt
-import numpy as np
-import plotly.express as px
-from modules.nav import SideBarLinks
 import requests
 
-# Show appropriate sidebar links for the role of the currently logged in user
-SideBarLinks()
+# Set base URL for the API
+base_url = "http://api:4000/p"  # Replace with your actual backend URL
 
-logger = logging.getLogger(__name__)
+# Function to get update posts from developers
+def get_developer_posts():
+    response = requests.get(f"{base_url}/posts")
+    if response.status_code == 200:
+        posts = response.json()
+        return [post for post in posts if post['tag'] == 'update']
+    return []
 
-API_URL = "http://api:4000"
+# Function to get posts from content creators the player follows
+def get_followed_content_creator_posts(player_id):
+    response = requests.get(f"{base_url}/follows/{player_id}")
+    followed_creators = response.json() if response.status_code == 200 else []
+    followed_usernames = [creator['username'] for creator in followed_creators]
 
-def get_posts():
-    response = requests.get(f"{API_URL}/p/posts")
-    return response.json() if response.status_code == 200 else None
+    response = requests.get(f"{base_url}/posts")
+    if response.status_code == 200:
+        posts = response.json()
+        return [post for post in posts if post['username'] in followed_usernames]
+    return []
 
-def get_followed_streamers(player_id):
-    response = requests.get(f"{API_URL}/p/follows/{player_id}")
-    return response.json() if response.status_code == 200 else None
+# Function to get detailed post information, including likes and comments
+def get_post_details(post_id):
+    response = requests.get(f"{base_url}/posts/{post_id}")
+    if response.status_code == 200:
+        return response.json()
+    return {}
 
-def get_likes(post_id):
-    response = requests.get(f"{API_URL}/p/likes/{post_id}")
-    return response.json() if response.status_code == 200 else None
-
-def get_comments(post_id):
-    response = requests.get(f"{API_URL}/p/comments/{post_id}")
-    return response.json() if response.status_code == 200 else None
-
-def get_streamers():
-    response = requests.get(f"{API_URL}/p/streamers")
-    return response.json() if response.status_code == 200 else None
-
-def add_like(player_id, post_id):
-    response = requests.post(f"{API_URL}/p/likes/{player_id}/{post_id}")
+# Function to like a post
+def like_post(player_id, post_id):
+    response = requests.post(f"{base_url}/likes/{player_id}/{post_id}")
     return response.status_code == 201
 
-def add_comment(player_id, post_id, content):
-    payload = {"content": content}
-    response = requests.post(f"{API_URL}/p/comments/{player_id}/{post_id}", json=payload)
+# Function to add a comment to a post
+def add_comment(player_id, post_id, comment_content):
+    response = requests.post(f"{base_url}/comments/{player_id}/{post_id}", json={"content": comment_content})
     return response.status_code == 201
 
-def add_follow(player_id, streamer_id):
-    response = requests.post(f"{API_URL}/p/follows/{player_id}/{streamer_id}")
-    return response.status_code == 201
+# Function to get the list of content creators
+def get_content_creators():
+    response = requests.get(f"{base_url}/streamers")
+    if response.status_code == 200:
+        return response.json()
+    return []
 
-def remove_follow(player_id, streamer_id):
-    response = requests.delete(f"{API_URL}/p/follows/{player_id}/{streamer_id}")
-    return response.status_code == 200
+# Function to follow or unfollow a content creator
+def update_follow_status(player_id, streamer_id, follow=True):
+    if follow:
+        response = requests.post(f"{base_url}/follows/{player_id}/{streamer_id}")
+    else:
+        response = requests.delete(f"{base_url}/follows/{player_id}/{streamer_id}")
+    return response.status_code == 201 if follow else response.status_code == 200
 
-st.title("Player Posts and Streamer Interaction")
+# Streamlit App Layout
+st.title("Looter Buddy: Player Dashboard")
 
+# Get the current player ID
 player_id = st.number_input("Enter your Player ID", min_value=1, step=1)
 
-if player_id:
-    st.header("Posts")
+# Display developer posts
+st.header("Developer Updates")
+developer_posts = get_developer_posts()
+for post in developer_posts:
+    st.subheader(post['title'])
+    st.write(post['content'])
+    st.write(f"Posted on: {post['dateCreated']}")
 
-    posts = get_posts()
-    if posts:
-        df_posts = pd.DataFrame(posts)
+# Display content creator posts
+st.header("Posts from Content Creators You Follow")
+creator_posts = get_followed_content_creator_posts(player_id)
+for post in creator_posts:
+    st.subheader(post['title'])
+    st.write(post['content'])
+    st.write(f"Posted by: {post['username']} on {post['dateCreated']}")
 
-        # Separate posts by updates and followed streamers
-        update_posts = df_posts[df_posts['tag'] == 'update']
-        streamer_posts = df_posts[df_posts['streamerID'].notnull()]
+# Post details section
+st.header("Investigate a Post")
+all_posts = developer_posts + creator_posts
+selected_post_title = st.selectbox("Select a post to view details", [post['title'] for post in all_posts])
+selected_post = next((post for post in all_posts if post['title'] == selected_post_title), None)
 
-        st.subheader("Game Updates")
-        st.dataframe(update_posts[['title', 'content', 'dateCreated']])
+if selected_post:
+    post_details = get_post_details(selected_post['postID'])
+    st.subheader(post_details['title'])
+    st.write(post_details['content'])
+    st.write(f"Total Likes: {post_details['likes']}")
+    st.write("Comments:")
+    for comment in post_details['comments']:
+        st.write(f"{comment['username']}: {comment['content']} (Posted on: {comment['dateCreated']})")
 
-        st.subheader("Posts from Followed Streamers")
-        followed_streamers = get_followed_streamers(player_id)
-        followed_streamer_ids = [streamer['username'] for streamer in followed_streamers]
+    # Like the post
+    if st.button("Like this post"):
+        if like_post(player_id, selected_post['postID']):
+            st.success("You liked this post!")
 
-        followed_posts = streamer_posts[streamer_posts['streamerID'].isin(followed_streamer_ids)]
-        st.dataframe(followed_posts[['title', 'content', 'dateCreated']])
+    # Add a comment
+    comment_content = st.text_input("Add a comment")
+    if st.button("Post Comment"):
+        if add_comment(player_id, selected_post['postID'], comment_content):
+            st.success("Your comment was posted!")
 
-        st.subheader("Interact with Posts")
+# Follow/Unfollow content creators
+st.header("Manage Content Creator Follows")
+creators = get_content_creators()
+creator_names = [creator['username'] for creator in creators]
+followed_creators = [post['username'] for post in creator_posts]
 
-        if not followed_posts.empty:
-            selected_post = st.selectbox("Select a Post to Interact With", options=followed_posts['title'].tolist())
+selected_creator_name = st.selectbox("Select a content creator", creator_names)
+selected_creator = next((creator for creator in creators if creator['username'] == selected_creator_name), None)
 
-            # Fix: Get the actual postID instead of using the index
-            if selected_post in followed_posts['title'].values:
-                selected_post_id = followed_posts[followed_posts['title'] == selected_post]['postID'].values[0]
-
-                st.write("### Post Details")
-                st.write(f"**Title:** {followed_posts[followed_posts['postID'] == selected_post_id]['title'].values[0]}")
-                st.write(f"**Content:** {followed_posts[followed_posts['postID'] == selected_post_id]['content'].values[0]}")
-                st.write(f"**Date Created:** {followed_posts[followed_posts['postID'] == selected_post_id]['dateCreated'].values[0]}")
-
-                st.write("### Likes and Comments")
-                if st.button("Like Post"):
-                    if add_like(player_id, selected_post_id):
-                        st.success("You liked the post!")
-                    else:
-                        st.error("Failed to like the post.")
-
-                comment_content = st.text_area("Add a Comment")
-                if st.button("Post Comment"):
-                    if add_comment(player_id, selected_post_id, comment_content):
-                        st.success("Comment added successfully.")
-                    else:
-                        st.error("Failed to add comment.")
-
-                st.write("### Existing Likes")
-                likes = get_likes(selected_post_id)
-                if likes:
-                    st.dataframe(pd.DataFrame(likes, columns=["Username"]))
-                else:
-                    st.write("No likes yet.")
-
-                st.write("### Existing Comments")
-                comments = get_comments(selected_post_id)
-                if comments:
-                    st.dataframe(pd.DataFrame(comments, columns=["Username", "Comment", "Date Created"]))
-                else:
-                    st.write("No comments yet.")
-            else:
-                st.error("Selected post not found.")
-        else:
-            st.warning("No posts available from followed streamers.")
-
-    all_streamers = get_streamers()
-    if all_streamers:
-        all_streamer_names = [streamer['username'] for streamer in all_streamers]
-        st.write("### Follow New Streamers")
-        selected_new_streamer = st.selectbox("Select a Streamer to Follow", options=all_streamer_names)
-        if st.button("Follow Streamer"):
-            new_streamer_id = all_streamers[all_streamer_names.index(selected_new_streamer)]['streamerID']
-            if add_follow(player_id, new_streamer_id):
-                st.success(f"You followed {selected_new_streamer}.")
-            else:
-                st.error("Failed to follow streamer.")
-else:
-    st.error("Please enter a valid Player ID.")
+if selected_creator:
+    streamer_id = selected_creator['streamerID']
+    if selected_creator_name in followed_creators:
+        if st.button(f"Unfollow {selected_creator_name}"):
+            if update_follow_status(player_id, streamer_id, follow=False):
+                st.success(f"You unfollowed {selected_creator_name}")
+    else:
+        if st.button(f"Follow {selected_creator_name}"):
+            if update_follow_status(player_id, streamer_id, follow=True):
+                st.success(f"You followed {selected_creator_name}")

@@ -4,6 +4,14 @@ from backend.db_connection import db
 
 players = Blueprint('players', __name__)
 
+# Helper function to get userID from playerID
+def get_user_id_from_player(player_id):
+    cursor = db.get_db().cursor()
+    query = "SELECT userID FROM looterbuddy.Players WHERE playerID = %s;"
+    cursor.execute(query, (player_id,))
+    user_id = cursor.fetchone()
+    return user_id[0] if user_id else None
+
 @players.route('/inventory/<playerID>', methods=['GET'])
 def get_inventory(playerID):
     current_app.logger.info(f'player_routes.py: GET /inventory/{playerID}')
@@ -192,6 +200,66 @@ def get_posts():
     the_response.mimetype = 'application/json'
     return the_response
 
+@players.route('/posts/<postID>', methods=['GET'])
+def get_post_by_id(postID):
+    current_app.logger.info(f'player_routes.py: GET /posts/{postID}')
+    
+    cursor = db.get_db().cursor()
+    query = '''
+        SELECT
+            p.postID,
+            p.title,
+            p.content,
+            p.tag,
+            p.dateCreated,
+            p.dateUpdated,
+            d.developerID,
+            s.streamerID
+        FROM
+            looterbuddy.Posts p
+        LEFT JOIN
+            looterbuddy.Developers d ON p.developerID = d.developerID
+        LEFT JOIN
+            looterbuddy.ContentCreators s ON p.streamerID = s.streamerID
+        WHERE
+            p.postID = %s;
+    '''
+    
+    cursor.execute(query, (postID,))
+    theData = cursor.fetchone()
+
+    if not theData:
+        current_app.logger.info(f'No post found for post ID: {postID}')
+        return make_response(jsonify({"message": f"No data found for post ID: {postID}"}), 404)
+
+    json_data = dict(theData)
+    
+    # Get the number of likes
+    like_query = '''
+        SELECT COUNT(*) AS like_count
+        FROM looterbuddy.Likes
+        WHERE postID = %s;
+    '''
+    cursor.execute(like_query, (postID,))
+    like_data = cursor.fetchone()
+    json_data['likes'] = like_data['like_count'] if like_data else 0
+    
+    # Get the comments
+    comment_query = '''
+        SELECT c.content, u.username
+        FROM looterbuddy.Comments c
+        JOIN looterbuddy.Users u ON c.userID = u.userID
+        WHERE c.postID = %s;
+    '''
+    cursor.execute(comment_query, (postID,))
+    comments = cursor.fetchall()
+    json_data['comments'] = comments if comments else []
+
+    the_response = make_response(jsonify(json_data))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
+
 @players.route('/streamers', methods=['GET'])
 def get_streamers():
     current_app.logger.info(f'player_routes.py: GET /streamers')
@@ -221,32 +289,39 @@ def get_streamers():
     the_response.mimetype = 'application/json'
     return the_response
 
-@players.route('/follows/<playerID>', methods=['GET'])
+@players.route('/follow/<playerID>', methods=['GET'])
 def get_follows(playerID):
     current_app.logger.info(f'player_routes.py: GET /follows/{playerID}')
     
+    # Translate playerID to userID
+    user_id = get_user_id_from_player(playerID)
+    if not user_id:
+        return make_response(jsonify({"error": "Player not found"}), 404)
+    
+    # Query for followed content creators
     cursor = db.get_db().cursor()
     query = '''
         SELECT
-            u.username
+            u.username,
+            c.streamerID
         FROM 
             looterbuddy.Follows f
         JOIN
             looterbuddy.ContentCreators c ON f.streamerID = c.streamerID
         JOIN
             looterbuddy.Users u ON c.userID = u.userID
-        JOIN
-            looterbuddy.Players p ON f.userID = p.userID
         WHERE
-            p.playerID = {0};
-        '''.format(playerID)
-    
-    cursor.execute(query)
+            f.userID = %s;
+        '''
+    cursor.execute(query, (user_id,))
+    followed_creators = cursor.fetchall()
 
     json_data = []
-    theData = cursor.fetchall()
-    for row in theData:
-        json_data.append(dict(row))
+    for row in followed_creators:
+        json_data.append({
+            "username": row['username'],
+            "streamerID": row['streamerID']
+        })
     
     the_response = make_response(jsonify(json_data))
     the_response.status_code = 200
@@ -257,49 +332,47 @@ def get_follows(playerID):
 def add_follow(playerID, streamerID):
     current_app.logger.info(f'player_routes.py: POST /follows/{playerID}/{streamerID}')
     
-    cursor = db.get_db().cursor()
-
-    # Fetch the userID of the player
-    query = "SELECT userID FROM looterbuddy.Players WHERE playerID = %s;"
-    cursor.execute(query, (playerID,))
-    user_id = cursor.fetchone()
-
-    if user_id is None:
+    # Translate playerID to userID
+    user_id = get_user_id_from_player(playerID)
+    if not user_id:
         return make_response(jsonify({"error": "Player not found"}), 404)
     
     # Insert a new follow record
+    cursor = db.get_db().cursor()
     query = '''
         INSERT INTO looterbuddy.Follows (userID, streamerID) 
         VALUES (%s, %s);
     '''
-    cursor.execute(query, (user_id[0], streamerID))
-    db.get_db().commit()
-
-    return make_response(jsonify({"message": "Follow added successfully"}), 201)
+    try:
+        cursor.execute(query, (user_id, streamerID))
+        db.get_db().commit()
+        return make_response(jsonify({"message": "Follow added successfully"}), 201)
+    except Exception as e:
+        current_app.logger.error(f'Error adding follow: {str(e)}')
+        return make_response(jsonify({"error": "Failed to add follow"}), 500)
 
 @players.route('/follows/<playerID>/<streamerID>', methods=['DELETE'])
 def remove_follow(playerID, streamerID):
     current_app.logger.info(f'player_routes.py: DELETE /follows/{playerID}/{streamerID}')
     
-    cursor = db.get_db().cursor()
-
-    # Fetch the userID of the player
-    query = "SELECT userID FROM looterbuddy.Players WHERE playerID = %s;"
-    cursor.execute(query, (playerID,))
-    user_id = cursor.fetchone()
-
+    # Translate playerID to userID
+    user_id = get_user_id_from_player(playerID)
     if not user_id:
         return make_response(jsonify({"error": "Player not found"}), 404)
     
     # Delete the follow record
+    cursor = db.get_db().cursor()
     query = '''
         DELETE FROM looterbuddy.Follows 
         WHERE userID = %s AND streamerID = %s;
     '''
-    cursor.execute(query, (user_id[0], streamerID))
-    db.get_db().commit()
-
-    return make_response(jsonify({"message": "Follow removed successfully"}), 200)
+    try:
+        cursor.execute(query, (user_id, streamerID))
+        db.get_db().commit()
+        return make_response(jsonify({"message": "Follow removed successfully"}), 200)
+    except Exception as e:
+        current_app.logger.error(f'Error removing follow: {str(e)}')
+        return make_response(jsonify({"error": "Failed to remove follow"}), 500)
 
 @players.route('/likes/<postID>', methods=['GET'])
 def get_likes(postID):

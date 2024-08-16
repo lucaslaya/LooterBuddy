@@ -18,14 +18,11 @@ def get_all_performance():
             p.DPS,
             p.dateCompleted,
             m.name AS missionName,
-            m.description AS missionDescription,
-            l.weapon1, l.weapon2, l.armor1, l.armor2, l.armor3
+            m.description AS missionDescription
         FROM
             looterbuddy.Performance p
         JOIN
             looterbuddy.Missions m ON p.missionID = m.missionID
-        JOIN
-            looterbuddy.Loadout l ON p.loadoutID = l.loadoutID;
         '''
     
     cursor.execute(query)
@@ -40,9 +37,9 @@ def get_all_performance():
     the_response.mimetype = 'application/json'
     return the_response
 
-@developers.route('/performance/<playerID>', methods=['GET'])
-def get_performance_by_player(playerID):
-    current_app.logger.info(f'developer_routes.py: GET /performance/{playerID}')
+@developers.route('/performance/mission/<missionID>', methods=['GET'])
+def get_performance_by_mission(missionID):
+    current_app.logger.info(f'developer_routes.py: GET /performance/mission/{missionID}')
     
     cursor = db.get_db().cursor()
     query = '''
@@ -53,20 +50,54 @@ def get_performance_by_player(playerID):
             p.totalDeaths,
             p.DPS,
             p.dateCompleted,
-            m.name AS missionName
+            m.name AS missionName,
+            m.description AS missionDescription
         FROM
             looterbuddy.Performance p
         JOIN
             looterbuddy.Missions m ON p.missionID = m.missionID
-        JOIN
-            looterbuddy.Loadout l ON p.loadoutID = l.loadoutID
         WHERE
-            p.playerID = %s;
-        '''
+            p.missionID = %s;
+    '''
     
-    cursor.execute(query, (playerID,))
-    json_data = []
+    cursor.execute(query, (missionID,))
     theData = cursor.fetchall()
+
+    if not theData:
+        current_app.logger.info(f'No performance data found for mission ID: {missionID}')
+        return make_response(jsonify({"message": f"No data found for mission ID: {missionID}"}), 404)
+
+    json_data = []
+    for row in theData:
+        json_data.append(dict(row))
+    
+    the_response = make_response(jsonify(json_data))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
+
+@developers.route('/missions', methods=['GET'])
+def get_all_missions():
+    current_app.logger.info(f'developer_routes.py: GET /missions/')
+    
+    cursor = db.get_db().cursor()
+    query = '''
+        SELECT
+            missionID,
+            name,
+            description
+        FROM
+            looterbuddy.Missions;
+    '''
+    
+    cursor.execute(query)
+    theData = cursor.fetchall()
+    
+    if not theData:
+        current_app.logger.info('No missions found.')
+        return make_response(jsonify({"message": "No missions found"}), 404)
+
+    json_data = []
     for row in theData:
         json_data.append(dict(row))
     
@@ -182,4 +213,85 @@ def get_loadout_use_by_mission(missionID):
     the_response.mimetype = 'application/json'
     return the_response
 
+@developers.route('/items/names', methods=['POST'])
+def get_item_names():
+    current_app.logger.info('developer_routes.py: POST /items/names')
+    
+    cursor = db.get_db().cursor()
+    query = f'''
+        SELECT 
+            itemID, 
+            name 
+        FROM 
+            looterbuddy.Items;
+    '''
+    cursor.execute(query)
+    json_data = []
+    theData = cursor.fetchall()
+    for row in theData:
+        json_data.append(dict(row))
+    
+    the_response = make_response(jsonify(json_data))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
 
+@developers.route('/posts/<postID>', methods=['GET'])
+def get_post_by_id(postID):
+    current_app.logger.info(f'developer_routes.py: GET /posts/{postID}')
+    
+    cursor = db.get_db().cursor()
+    query = '''
+        SELECT
+            p.postID,
+            p.title,
+            p.content,
+            p.tag,
+            p.dateCreated,
+            p.dateUpdated,
+            d.developerID,
+            s.streamerID
+        FROM
+            looterbuddy.Posts p
+        LEFT JOIN
+            looterbuddy.Developers d ON p.developerID = d.developerID
+        LEFT JOIN
+            looterbuddy.ContentCreators s ON p.streamerID = s.streamerID
+        WHERE
+            p.postID = %s;
+    '''
+    
+    cursor.execute(query, (postID,))
+    theData = cursor.fetchone()
+
+    if not theData:
+        current_app.logger.info(f'No post found for post ID: {postID}')
+        return make_response(jsonify({"message": f"No data found for post ID: {postID}"}), 404)
+
+    json_data = dict(theData)
+    
+    # Get the number of likes
+    like_query = '''
+        SELECT COUNT(*) AS like_count
+        FROM looterbuddy.Likes
+        WHERE postID = %s;
+    '''
+    cursor.execute(like_query, (postID,))
+    like_data = cursor.fetchone()
+    json_data['likes'] = like_data['like_count'] if like_data else 0
+    
+    # Get the comments
+    comment_query = '''
+        SELECT c.content, u.username
+        FROM looterbuddy.Comments c
+        JOIN looterbuddy.Users u ON c.userID = u.userID
+        WHERE c.postID = %s;
+    '''
+    cursor.execute(comment_query, (postID,))
+    comments = cursor.fetchall()
+    json_data['comments'] = comments if comments else []
+
+    the_response = make_response(jsonify(json_data))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
