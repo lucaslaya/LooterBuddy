@@ -12,6 +12,7 @@ equipment popularity data and post/engage with posts.
 ### Links
 - Project Document: https://docs.google.com/document/d/1GwX5Ur4KWdFnkCJ4MYjmFYEJ3QYLBA1zBLjNxFAFkG0/edit?usp=sharing
 - Youtube Demo: https://youtu.be/0XNy8yDVOSY
+- Youtube Demo (v2 - Added datagrip analysis): https://youtu.be/u32TwAcqFSU
 
 ## Current Project Components
 
