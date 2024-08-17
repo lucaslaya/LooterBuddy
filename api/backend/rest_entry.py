@@ -46,7 +46,7 @@ def create_app():
     # Register the routes from each Blueprint with the app object
     # and give a url prefix to each
     app.register_blueprint(players,   url_prefix='/p')
-    app.register_blueprint(developers,    url_prefix='/d')
+    app.register_blueprint(developers,url_prefix='/d')
     app.register_blueprint(streamers, url_prefix='/s')
 
     # Don't forget to return the app object

@@ -9,22 +9,22 @@ st.set_page_config(layout = 'wide')
 # Show appropriate sidebar links for the role of the currently logged in user
 SideBarLinks()
 
-st.title(f"Welcome Player, {st.session_state['first_name']}.")
+st.title(f"Welcome Streamer, {st.session_state['first_name']}.")
 st.write('')
 st.write('')
 st.write('### What would you like to do today?')
 
-if st.button('View and manage your inventory and loadout', 
+if st.button('View loadout use statistics', 
              type='primary',
              use_container_width=True):
-    st.switch_page('pages/01_inventory_loadout.py')
+    st.switch_page('pages/21_loadout_use.py')
 
-if st.button('View player performance', 
+if st.button('View community reactions', 
              type='primary',
              use_container_width=True):
-    st.switch_page('pages/02_player_performance.py')
+    st.switch_page('pages/22_streamer_community.py')
 
-if st.button('Keep up with posts and developer updates',
+if st.button('Post a new article/notice',
              type='primary',
              use_container_width=True):
-    st.switch_page('pages/03_player_community.py')
+    st.switch_page('pages/23_streamer_post.py')
