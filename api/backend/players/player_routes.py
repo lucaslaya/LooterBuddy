@@ -4,14 +4,6 @@ from backend.db_connection import db
 
 players = Blueprint('players', __name__)
 
-# Helper function to get userID from playerID
-def get_user_id_from_player(player_id):
-    cursor = db.get_db().cursor()
-    query = "SELECT userID FROM looterbuddy.Players WHERE playerID = %s;"
-    cursor.execute(query, (player_id,))
-    user_id = cursor.fetchone()
-    return user_id[0] if user_id else None
-
 @players.route('/inventory/<playerID>', methods=['GET'])
 def get_inventory(playerID):
     current_app.logger.info(f'player_routes.py: GET /inventory/{playerID}')
@@ -171,318 +163,250 @@ def get_performance(playerID):
     the_response.mimetype = 'application/json'
     return the_response
 
-@players.route('/posts', methods=['GET'])
-def get_posts():
-    current_app.logger.info(f'player_routes.py: GET /posts')
+# Get all update articles
+@players.route('/posts/update-articles', methods=['GET'])
+def get_update_articles():
+    current_app.logger.info('players_routes.py: GET /update-articles')
     
     cursor = db.get_db().cursor()
     query = '''
-        SELECT
-            title,
-            content,
-            tag,
-            dateCreated,
-            developerID,
-            streamerID
-        FROM
-            looterbuddy.Posts;
-        '''
-    
-    cursor.execute(query)
-
-    json_data = []
-    theData = cursor.fetchall()
-    for row in theData:
-        json_data.append(dict(row))
-    
-    the_response = make_response(jsonify(json_data))
-    the_response.status_code = 200
-    the_response.mimetype = 'application/json'
-    return the_response
-
-@players.route('/posts/<postID>', methods=['GET'])
-def get_post_by_id(postID):
-    current_app.logger.info(f'player_routes.py: GET /posts/{postID}')
-    
-    cursor = db.get_db().cursor()
-    query = '''
-        SELECT
-            p.postID,
-            p.title,
-            p.content,
-            p.tag,
-            p.dateCreated,
-            p.dateUpdated,
-            d.developerID,
-            s.streamerID
-        FROM
-            looterbuddy.Posts p
-        LEFT JOIN
-            looterbuddy.Developers d ON p.developerID = d.developerID
-        LEFT JOIN
-            looterbuddy.ContentCreators s ON p.streamerID = s.streamerID
-        WHERE
-            p.postID = %s;
-    '''
-    
-    cursor.execute(query, (postID,))
-    theData = cursor.fetchone()
-
-    if not theData:
-        current_app.logger.info(f'No post found for post ID: {postID}')
-        return make_response(jsonify({"message": f"No data found for post ID: {postID}"}), 404)
-
-    json_data = dict(theData)
-    
-    # Get the number of likes
-    like_query = '''
-        SELECT COUNT(*) AS like_count
-        FROM looterbuddy.Likes
-        WHERE postID = %s;
-    '''
-    cursor.execute(like_query, (postID,))
-    like_data = cursor.fetchone()
-    json_data['likes'] = like_data['like_count'] if like_data else 0
-    
-    # Get the comments
-    comment_query = '''
-        SELECT c.content, u.username
-        FROM looterbuddy.Comments c
-        JOIN looterbuddy.Users u ON c.userID = u.userID
-        WHERE c.postID = %s;
-    '''
-    cursor.execute(comment_query, (postID,))
-    comments = cursor.fetchall()
-    json_data['comments'] = comments if comments else []
-
-    the_response = make_response(jsonify(json_data))
-    the_response.status_code = 200
-    the_response.mimetype = 'application/json'
-    return the_response
-
-@players.route('/streamers', methods=['GET'])
-def get_streamers():
-    current_app.logger.info(f'player_routes.py: GET /streamers')
-    
-    cursor = db.get_db().cursor()
-    query = '''
-        SELECT
-            c.streamerID,
-            u.username,
-            c.category,
-            c.description
-        FROM
-            looterbuddy.ContentCreators c
-        JOIN
-            looterbuddy.Users u ON c.userID = u.userID;
-        '''
-    
-    cursor.execute(query)
-
-    json_data = []
-    theData = cursor.fetchall()
-    for row in theData:
-        json_data.append(dict(row))
-    
-    the_response = make_response(jsonify(json_data))
-    the_response.status_code = 200
-    the_response.mimetype = 'application/json'
-    return the_response
-
-@players.route('/follow/<playerID>', methods=['GET'])
-def get_follows(playerID):
-    current_app.logger.info(f'player_routes.py: GET /follows/{playerID}')
-    
-    # Translate playerID to userID
-    user_id = get_user_id_from_player(playerID)
-    if not user_id:
-        return make_response(jsonify({"error": "Player not found"}), 404)
-    
-    # Query for followed content creators
-    cursor = db.get_db().cursor()
-    query = '''
-        SELECT
-            u.username,
-            c.streamerID
+        SELECT 
+            *
         FROM 
-            looterbuddy.Follows f
-        JOIN
-            looterbuddy.ContentCreators c ON f.streamerID = c.streamerID
-        JOIN
-            looterbuddy.Users u ON c.userID = u.userID
-        WHERE
-            f.userID = %s;
-        '''
-    cursor.execute(query, (user_id,))
-    followed_creators = cursor.fetchall()
-
-    json_data = []
-    for row in followed_creators:
-        json_data.append({
-            "username": row['username'],
-            "streamerID": row['streamerID']
-        })
+            looterbuddy.Posts
+        WHERE 
+            tag = 'update'
+        ORDER BY dateCreated DESC;
+    '''
     
+    cursor.execute(query)
+    articles = cursor.fetchall()
+    
+    json_data = [dict(row) for row in articles]
     the_response = make_response(jsonify(json_data))
     the_response.status_code = 200
     the_response.mimetype = 'application/json'
     return the_response
 
-@players.route('/follows/<playerID>/<streamerID>', methods=['POST'])
-def add_follow(playerID, streamerID):
-    current_app.logger.info(f'player_routes.py: POST /follows/{playerID}/{streamerID}')
+# Get all articles from streamers followed by the player
+@players.route('/posts/streamer-articles/<player_id>', methods=['GET'])
+def get_streamer_articles(player_id):
+    current_app.logger.info(f'players_routes.py: GET /streamer-articles/{player_id}')
     
-    # Translate playerID to userID
-    user_id = get_user_id_from_player(playerID)
-    if not user_id:
-        return make_response(jsonify({"error": "Player not found"}), 404)
-    
-    # Insert a new follow record
     cursor = db.get_db().cursor()
     query = '''
-        INSERT INTO looterbuddy.Follows (userID, streamerID) 
+        SELECT 
+            p.*
+        FROM 
+            looterbuddy.Posts p
+        JOIN 
+            looterbuddy.Follows f ON p.streamerID = f.streamerID
+        WHERE 
+            f.userID = {0}
+        ORDER BY p.dateCreated DESC;
+    '''.format(player_id)
+    
+    cursor.execute(query)
+    articles = cursor.fetchall()
+    
+    json_data = [dict(row) for row in articles]
+    the_response = make_response(jsonify(json_data))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
+
+# Get detailed information of a post
+@players.route('/posts/details/<post_id>', methods=['GET'])
+def get_post_details(post_id):
+    current_app.logger.info(f'players_routes.py: GET /details/{post_id}')
+    
+    cursor = db.get_db().cursor()
+    
+    # Get post details
+    post_query = '''
+        SELECT 
+            * 
+        FROM 
+            looterbuddy.Posts 
+        WHERE 
+            postID = {0};
+    '''.format(post_id)
+    
+    cursor.execute(post_query)
+    post = cursor.fetchone()
+    
+    # Get number of likes
+    likes_query = '''
+        SELECT 
+            COUNT(*) as likes 
+        FROM 
+            looterbuddy.Likes 
+        WHERE 
+            postID = {0};
+    '''.format(post_id)
+    
+    cursor.execute(likes_query)
+    likes = cursor.fetchone()
+    
+    # Get comments
+    comments_query = '''
+        SELECT 
+            c.content, 
+            u.username
+        FROM 
+            looterbuddy.Comments c
+        JOIN 
+            looterbuddy.Users u ON c.userID = u.userID
+        WHERE 
+            c.postID = {0};
+    '''.format(post_id)
+    
+    cursor.execute(comments_query)
+    comments = cursor.fetchall()
+    
+    post_details = {
+        'post': dict(post),
+        'likes': likes['likes'],
+        'comments': [dict(row) for row in comments]
+    }
+    
+    the_response = make_response(jsonify(post_details))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
+
+# Like a post
+@players.route('/posts/like', methods=['POST'])
+def like_post():
+    current_app.logger.info('players_routes.py: POST /like')
+    
+    data = request.json
+    cursor = db.get_db().cursor()
+    query = '''
+        INSERT INTO looterbuddy.Likes (userID, postID)
         VALUES (%s, %s);
     '''
-    try:
-        cursor.execute(query, (user_id, streamerID))
-        db.get_db().commit()
-        return make_response(jsonify({"message": "Follow added successfully"}), 201)
-    except Exception as e:
-        current_app.logger.error(f'Error adding follow: {str(e)}')
-        return make_response(jsonify({"error": "Failed to add follow"}), 500)
+    
+    cursor.execute(query, (data['userID'], data['postID']))
+    db.get_db().commit()
+    
+    the_response = make_response(jsonify({"message": "Post liked successfully!"}))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
 
-@players.route('/follows/<playerID>/<streamerID>', methods=['DELETE'])
-def remove_follow(playerID, streamerID):
-    current_app.logger.info(f'player_routes.py: DELETE /follows/{playerID}/{streamerID}')
+# Comment on a post
+@players.route('/posts/comment', methods=['POST'])
+def comment_on_post():
+    current_app.logger.info('players_routes.py: POST /comment')
     
-    # Translate playerID to userID
-    user_id = get_user_id_from_player(playerID)
-    if not user_id:
-        return make_response(jsonify({"error": "Player not found"}), 404)
+    data = request.json
+    cursor = db.get_db().cursor()
+    query = '''
+        INSERT INTO looterbuddy.Comments (userID, postID, content)
+        VALUES (%s, %s, %s);
+    '''
     
-    # Delete the follow record
+    cursor.execute(query, (data['userID'], data['postID'], data['content']))
+    db.get_db().commit()
+    
+    the_response = make_response(jsonify({"message": "Comment added successfully!"}))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
+
+# Get all followed streamers for a player
+@players.route('/follows/followed/<player_id>', methods=['GET'])
+def get_followed_streamers(player_id):
+    current_app.logger.info(f'players_routes.py: GET /followed/{player_id}')
+    
+    cursor = db.get_db().cursor()
+    query = '''
+        SELECT 
+            cc.streamerID, 
+            u.username
+        FROM 
+            looterbuddy.ContentCreators cc
+        JOIN 
+            looterbuddy.Follows f ON cc.streamerID = f.streamerID
+        JOIN 
+            looterbuddy.Users u ON cc.userID = u.userID
+        WHERE f.userID = {0};
+    '''.format(player_id)
+    
+    cursor.execute(query)
+    streamers = cursor.fetchall()
+    
+    json_data = [dict(row) for row in streamers]
+    the_response = make_response(jsonify(json_data))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
+
+# Get all streamers
+@players.route('/streamers', methods=['GET'])
+def get_all_streamers():
+    current_app.logger.info('players_routes.py: GET /streamers')
+    
+    cursor = db.get_db().cursor()
+    query = '''
+        SELECT 
+            cc.streamerID, 
+            u.username, 
+            cc.followCount, 
+            cc.category, 
+            cc.description
+        FROM 
+            looterbuddy.ContentCreators cc
+        JOIN 
+            looterbuddy.Users u ON cc.userID = u.userID;
+    '''
+    
+    cursor.execute(query)
+    streamers = cursor.fetchall()
+    
+    json_data = [dict(row) for row in streamers]
+    the_response = make_response(jsonify(json_data))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
+
+# Follow a streamer
+@players.route('/follows/follow', methods=['POST'])
+def follow_streamer():
+    current_app.logger.info('players_routes.py: POST /follow')
+    
+    data = request.json
+    cursor = db.get_db().cursor()
+    query = '''
+        INSERT INTO looterbuddy.Follows (userID, streamerID)
+        VALUES (%s, %s);
+    '''
+    
+    cursor.execute(query, (data['userID'], data['streamerID']))
+    db.get_db().commit()
+    
+    the_response = make_response(jsonify({"message": "Streamer followed successfully!"}))
+    the_response.status_code = 200
+    the_response.mimetype = 'application/json'
+    return the_response
+
+# Unfollow a streamer
+@players.route('/follows/unfollow', methods=['POST'])
+def unfollow_streamer():
+    current_app.logger.info('players_routes.py: POST /unfollow')
+    
+    data = request.json
     cursor = db.get_db().cursor()
     query = '''
         DELETE FROM looterbuddy.Follows 
         WHERE userID = %s AND streamerID = %s;
     '''
-    try:
-        cursor.execute(query, (user_id, streamerID))
-        db.get_db().commit()
-        return make_response(jsonify({"message": "Follow removed successfully"}), 200)
-    except Exception as e:
-        current_app.logger.error(f'Error removing follow: {str(e)}')
-        return make_response(jsonify({"error": "Failed to remove follow"}), 500)
-
-@players.route('/likes/<postID>', methods=['GET'])
-def get_likes(postID):
-    current_app.logger.info(f'player_routes.py: GET /likes/{postID}')
     
-    cursor = db.get_db().cursor()
-    query = '''
-        SELECT
-            u.username
-        FROM 
-            looterbuddy.Likes l
-        JOIN
-            looterbuddy.Users u ON l.userID = u.userID
-        WHERE
-            l.postID = %s;
-        '''
+    cursor.execute(query, (data['userID'], data['streamerID']))
+    db.get_db().commit()
     
-    cursor.execute(query, (postID,))
-
-    json_data = []
-    theData = cursor.fetchall()
-    for row in theData:
-        json_data.append(dict(row))
-    
-    the_response = make_response(jsonify(json_data))
+    the_response = make_response(jsonify({"message": "Streamer unfollowed successfully!"}))
     the_response.status_code = 200
     the_response.mimetype = 'application/json'
     return the_response
-
-# Route to add a like to a post
-@players.route('/likes/<playerID>/<postID>', methods=['POST'])
-def add_like(playerID, postID):
-    current_app.logger.info(f'player_routes.py: POST /likes/{playerID}/{postID}')
-    
-    cursor = db.get_db().cursor()
-
-    # Fetch the userID of the player
-    query = "SELECT userID FROM looterbuddy.Players WHERE playerID = %s;"
-    cursor.execute(query, (playerID,))
-    user_id = cursor.fetchone()
-
-    if not user_id:
-        return make_response(jsonify({"error": "Player not found"}), 404)
-    
-    # Insert a new like record
-    query = '''
-        INSERT INTO looterbuddy.Likes (userID, postID) 
-        VALUES (%s, %s);
-    '''
-    cursor.execute(query, (user_id[0], postID))
-    db.get_db().commit()
-
-    return make_response(jsonify({"message": "Like added successfully"}), 201)
-
-# Route to retrieve comments for a certain postID
-@players.route('/comments/<postID>', methods=['GET'])
-def get_comments(postID):
-    current_app.logger.info(f'player_routes.py: GET /comments/{postID}')
-    
-    cursor = db.get_db().cursor()
-    query = '''
-        SELECT
-            u.username,
-            c.content,
-            c.dateCreated
-        FROM 
-            looterbuddy.Comments c
-        JOIN
-            looterbuddy.Users u ON c.userID = u.userID
-        WHERE
-            c.postID = %s;
-        '''
-    
-    cursor.execute(query, (postID,))
-
-    json_data = []
-    theData = cursor.fetchall()
-    for row in theData:
-        json_data.append(dict(row))
-    
-    the_response = make_response(jsonify(json_data))
-    the_response.status_code = 200
-    the_response.mimetype = 'application/json'
-    return the_response
-
-# Route to add a comment to a post
-@players.route('/comments/<playerID>/<postID>', methods=['POST'])
-def add_comment(playerID, postID):
-    current_app.logger.info(f'player_routes.py: POST /comments/{playerID}/{postID}')
-    
-    content = request.json.get('content', '')
-    if not content:
-        return make_response(jsonify({"error": "Comment content is required"}), 400)
-
-    cursor = db.get_db().cursor()
-
-    # Fetch the userID of the player
-    query = "SELECT userID FROM looterbuddy.Players WHERE playerID = %s;"
-    cursor.execute(query, (playerID,))
-    user_id = cursor.fetchone()
-
-    if not user_id:
-        return make_response(jsonify({"error": "Player not found"}), 404)
-    
-    # Insert a new comment record
-    query = '''
-        INSERT INTO looterbuddy.Comments (userID, postID, content) 
-        VALUES (%s, %s, %s);
-    '''
-    cursor.execute(query, (user_id[0], postID, content))
-    db.get_db().commit()
-
-    return make_response(jsonify({"message": "Comment added successfully"}), 201)
