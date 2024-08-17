@@ -36,7 +36,7 @@ def create_post(title, content, streamer_id):
 st.title("Create a New Post")
 
 # Streamer inputs
-streamer_id = st.text_input("Streamer ID")
+streamer_id = 1
 title = st.text_input("Post Title")
 content = st.text_area("Post Content")
 

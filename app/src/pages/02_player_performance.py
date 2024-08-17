@@ -24,7 +24,7 @@ def get_performance(player_id, mission_id=None):
 
 st.title("Player Performance")
 
-player_id = st.number_input("Enter your Player ID", min_value=1, step=1)
+player_id = 16
 
 if player_id:
     st.header("Performance")

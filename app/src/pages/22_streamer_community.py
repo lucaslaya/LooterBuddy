@@ -57,7 +57,7 @@ def get_post_details(post_id):
 st.title("Streamer Dashboard")
 
 # Streamer input
-streamer_id = st.text_input("Streamer ID")
+streamer_id = 1
 
 if streamer_id:
     # Display follow count

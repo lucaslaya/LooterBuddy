@@ -74,7 +74,7 @@ def unfollow_streamer(player_id, streamer_id):
 # Streamlit page layout
 st.title("Player Dashboard")
 
-player_id = 1  # Assuming a fixed player ID, this would be dynamic in a real application
+player_id = 1 
 
 # Display update articles in a table
 st.header("Update Articles")

@@ -39,7 +39,7 @@ def update_loadout(player_id, weapon1, weapon2, armor1, armor2, armor3):
 
 st.title("Player Inventory and Loadout")
 
-player_id = st.number_input("Enter your Player ID", min_value=1, step=1)
+player_id = 23
 
 if player_id:
     st.header("Inventory")
