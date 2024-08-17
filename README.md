@@ -9,6 +9,10 @@ It allows players to manage their inventory/loadout, look at their performance, 
 performance data, equipment popularity data, and allows for posting and engaging with the community. Lastly streamers can also access
 equipment popularity data and post/engage with posts.
 
+### Links
+- Project Document: https://docs.google.com/document/d/1GwX5Ur4KWdFnkCJ4MYjmFYEJ3QYLBA1zBLjNxFAFkG0/edit?usp=sharing
+- Youtube Demo: https://youtu.be/0XNy8yDVOSY
+
 ## Current Project Components
 
 Currently, there are three major components:
